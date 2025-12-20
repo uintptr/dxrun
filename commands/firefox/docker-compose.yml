@@ -1,0 +1,13 @@
+services:
+    firefox:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: firefox
+        environment:
+            DISPLAY: ${DISPLAY}
+        dns:
+            - 1.1.1.1
+        tty: true
+        volumes:
+            - /tmp/.X11-unix:/tmp/.X11-unix:ro
