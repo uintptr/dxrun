@@ -1,5 +1,4 @@
 use std::{
-    fs,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -8,16 +7,10 @@ use anyhow::{Result, anyhow, bail};
 use log::info;
 use which::which;
 
-const CONFIG_DIR_NAME: &str = env!("CARGO_PKG_NAME");
+use crate::config::get_config_dir;
 
 fn find_compose(command: &str) -> Result<PathBuf> {
-    let config_root = dirs::config_dir().ok_or(anyhow!("config dir not found"))?;
-
-    let config_dir = config_root.join(CONFIG_DIR_NAME);
-
-    if !config_dir.exists() {
-        fs::create_dir_all(&config_dir)?;
-    }
+    let config_dir = get_config_dir()?;
 
     let command_dir = config_dir.join(command);
 
