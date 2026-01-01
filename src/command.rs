@@ -4,10 +4,26 @@ use std::{
 };
 
 use anyhow::{Result, anyhow, bail};
+use clap::Parser;
 use log::info;
 use which::which;
 
 use crate::config::get_config_dir;
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+pub struct UserArgs {
+    /// Extra Volume Configuration
+    #[arg(short, long, action = clap::ArgAction::Append)]
+    pub volume: Option<Vec<String>>,
+
+    /// Extra Volume Configuration
+    #[arg(short, long, action = clap::ArgAction::Append)]
+    pub environ: Option<Vec<String>>,
+
+    #[arg(trailing_var_arg = true)]
+    pub extras: Vec<String>,
+}
 
 fn find_compose(command: &str) -> Result<PathBuf> {
     let config_dir = get_config_dir()?;
@@ -34,7 +50,7 @@ fn find_compose(command: &str) -> Result<PathBuf> {
     Ok(compose_file)
 }
 
-fn run_compose(name: &str, compose_file: &Path) -> Result<()> {
+fn run_compose(user_args: &UserArgs, name: &str, compose_file: &Path) -> Result<()> {
     info!("{}", compose_file.display());
 
     let compose_dir = compose_file
@@ -45,10 +61,25 @@ fn run_compose(name: &str, compose_file: &Path) -> Result<()> {
 
     info!("spawning {}", compose_file.display());
 
+    let mut args = vec!["run", "--rm"];
+
+    if let Some(environs) = &user_args.environ {
+        for env in environs.iter() {
+            args.push("-e");
+            args.push(env.as_str());
+        }
+    }
+
+    if let Some(volumes) = &user_args.volume {
+        for vol in volumes.iter() {
+            args.push("-v");
+            args.push(vol.as_str());
+        }
+    }
+
     let mut container = Command::new(composer)
         .current_dir(compose_dir)
-        .arg("run")
-        .arg("--rm")
+        .args(args)
         .arg(name)
         .spawn()?;
 
@@ -86,13 +117,11 @@ fn build_image(compose_file: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn run_command(args: &[String]) -> Result<()> {
-    let Some(name) = args.first() else {
-        bail!("command not found")
-    };
+pub fn run_command(args: &UserArgs) -> Result<()> {
+    let command = args.extras.first().ok_or(anyhow!("missing command"))?;
 
-    let compose_file = find_compose(name)?;
+    let compose_file = find_compose(command)?;
 
     build_image(&compose_file)?;
-    run_compose(name, &compose_file)
+    run_compose(&args, command, &compose_file)
 }
