@@ -8,7 +8,8 @@ use dxrun::{
 use log::LevelFilter;
 use rstaples::logging::StaplesLogger;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = UserArgs::parse();
 
     StaplesLogger::new()
@@ -21,6 +22,6 @@ fn main() -> Result<()> {
     } else if args.extras.len() != 1 {
         bail!("invalid # of arguments");
     } else {
-        run_command(&args)
+        run_command(&args).await
     }
 }
