@@ -21,6 +21,10 @@ pub struct UserArgs {
     #[arg(short, long, action = clap::ArgAction::Append)]
     pub environ: Option<Vec<String>>,
 
+    /// Don't use the cache to build
+    #[arg(short, long)]
+    pub no_cache: bool,
+
     #[arg(trailing_var_arg = true)]
     pub extras: Vec<String>,
 }
@@ -92,7 +96,7 @@ fn run_compose(user_args: &UserArgs, name: &str, compose_file: &Path) -> Result<
     Ok(())
 }
 
-fn build_image(compose_file: &Path) -> Result<()> {
+fn build_image(user_args: &UserArgs, compose_file: &Path) -> Result<()> {
     info!("{}", compose_file.display());
 
     let compose_dir = compose_file
@@ -103,9 +107,15 @@ fn build_image(compose_file: &Path) -> Result<()> {
 
     info!("building {}", compose_file.display());
 
+    let mut build_args = vec!["build"];
+
+    if user_args.no_cache {
+        build_args.push("--no-cache");
+    }
+
     let mut builder = Command::new(composer)
         .current_dir(compose_dir)
-        .arg("build")
+        .args(build_args)
         .spawn()?;
 
     let result = builder.wait()?;
@@ -122,6 +132,6 @@ pub fn run_command(args: &UserArgs) -> Result<()> {
 
     let compose_file = find_compose(command)?;
 
-    build_image(&compose_file)?;
+    build_image(&args, &compose_file)?;
     run_compose(&args, command, &compose_file)
 }
