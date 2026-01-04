@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Result, anyhow, bail};
 use clap::Parser;
-use log::info;
+use log::{error, info};
 use tokio::{fs, process::Command, select};
 use which::which;
 
@@ -23,8 +23,7 @@ pub struct UserArgs {
     #[arg(short, long)]
     pub no_cache: bool,
 
-    #[arg(trailing_var_arg = true)]
-    pub extras: Vec<String>,
+    pub command: Option<String>,
 }
 
 async fn exports_service(compose_file: &Path) -> Result<bool> {
@@ -98,7 +97,10 @@ async fn run_compose(user_args: &UserArgs, name: &str, compose_file: &Path) -> R
         res = container.wait() => res?,
         _ = tokio::signal::ctrl_c() => {
             info!("Received Ctrl+C, terminating container");
-            container.kill().await?;
+            if let Err(e) = container.kill().await{
+                error!("unable to kill the container ({e})");
+            }
+
             bail!("Interrupted by user");
         }
     };
@@ -146,10 +148,12 @@ async fn build_image(user_args: &UserArgs, compose_file: &Path) -> Result<()> {
 }
 
 pub async fn run_command(args: &UserArgs) -> Result<()> {
-    let command = args.extras.first().ok_or(anyhow!("missing command"))?;
+    if let Some(command) = &args.command {
+        let compose_file = find_compose(command)?;
 
-    let compose_file = find_compose(command)?;
-
-    build_image(&args, &compose_file).await?;
-    run_compose(&args, command, &compose_file).await
+        build_image(&args, &compose_file).await?;
+        run_compose(&args, command, &compose_file).await
+    } else {
+        bail!("Command not found")
+    }
 }

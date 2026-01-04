@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 
 use clap::Parser;
 use dxrun::{
@@ -17,11 +17,8 @@ async fn main() -> Result<()> {
         .with_log_level(LevelFilter::Info)
         .start();
 
-    if args.extras.is_empty() {
-        display_config()
-    } else if args.extras.len() != 1 {
-        bail!("invalid # of arguments");
-    } else {
-        run_command(&args).await
+    match args.command {
+        None => display_config(),
+        Some(_) => run_command(&args).await,
     }
 }

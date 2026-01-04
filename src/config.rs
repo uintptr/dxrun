@@ -29,6 +29,8 @@ fn list_config() -> Result<Vec<String>> {
         }
     }
 
+    filenames.sort();
+
     Ok(filenames)
 }
 
