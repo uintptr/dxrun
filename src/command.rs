@@ -1,9 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use anyhow::{Result, anyhow, bail};
 use clap::Parser;
-use log::{error, info};
-use tokio::{fs, process::Command, select};
+use log::info;
 use which::which;
 
 use crate::config::get_config_dir;
@@ -24,11 +26,6 @@ pub struct UserArgs {
     pub no_cache: bool,
 
     pub command: Option<String>,
-}
-
-async fn exports_service(compose_file: &Path) -> Result<bool> {
-    let data = fs::read_to_string(compose_file).await?;
-    Ok(data.contains("ports:"))
 }
 
 fn find_compose(command: &str) -> Result<PathBuf> {
@@ -56,7 +53,7 @@ fn find_compose(command: &str) -> Result<PathBuf> {
     Ok(compose_file)
 }
 
-async fn run_compose(user_args: &UserArgs, name: &str, compose_file: &Path) -> Result<()> {
+fn run_compose(user_args: &UserArgs, name: &str, compose_file: &Path) -> Result<()> {
     info!("{}", compose_file.display());
 
     let compose_dir = compose_file
@@ -67,11 +64,7 @@ async fn run_compose(user_args: &UserArgs, name: &str, compose_file: &Path) -> R
 
     info!("spawning {}", compose_file.display());
 
-    let mut args = vec!["run", "--rm"];
-
-    if exports_service(&compose_file).await? {
-        args.push("--service-ports");
-    }
+    let mut args = vec!["up"];
 
     if let Some(environs) = &user_args.environ {
         for env in environs.iter() {
@@ -93,17 +86,7 @@ async fn run_compose(user_args: &UserArgs, name: &str, compose_file: &Path) -> R
         .arg(name)
         .spawn()?;
 
-    let result = select! {
-        res = container.wait() => res?,
-        _ = tokio::signal::ctrl_c() => {
-            info!("Received Ctrl+C, terminating container");
-            if let Err(e) = container.kill().await{
-                error!("unable to kill the container ({e})");
-            }
-
-            bail!("Interrupted by user");
-        }
-    };
+    let result = container.wait()?;
 
     if let Some(code) = result.code() {
         info!("{name} returned {code}");
@@ -112,7 +95,7 @@ async fn run_compose(user_args: &UserArgs, name: &str, compose_file: &Path) -> R
     Ok(())
 }
 
-async fn build_image(user_args: &UserArgs, compose_file: &Path) -> Result<()> {
+fn build_image(user_args: &UserArgs, compose_file: &Path) -> Result<()> {
     info!("{}", compose_file.display());
 
     let compose_dir = compose_file
@@ -134,25 +117,21 @@ async fn build_image(user_args: &UserArgs, compose_file: &Path) -> Result<()> {
         .args(build_args)
         .spawn()?;
 
-    let result = builder.wait().await?;
+    let result = builder.wait()?;
 
     if let Some(code) = result.code() {
-        info!("docker-compose build returned {code}");
-
-        if 0 != code {
-            bail!("container build failure");
-        }
+        info!("returned {code}");
     }
 
     Ok(())
 }
 
-pub async fn run_command(args: &UserArgs) -> Result<()> {
+pub fn run_command(args: &UserArgs) -> Result<()> {
     if let Some(command) = &args.command {
         let compose_file = find_compose(command)?;
 
-        build_image(&args, &compose_file).await?;
-        run_compose(&args, command, &compose_file).await
+        build_image(&args, &compose_file)?;
+        run_compose(&args, command, &compose_file)
     } else {
         bail!("Command not found")
     }

@@ -8,8 +8,7 @@ use dxrun::{
 use log::LevelFilter;
 use rstaples::logging::StaplesLogger;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let args = UserArgs::parse();
 
     StaplesLogger::new()
@@ -17,8 +16,9 @@ async fn main() -> Result<()> {
         .with_log_level(LevelFilter::Info)
         .start();
 
-    match args.command {
-        None => display_config(),
-        Some(_) => run_command(&args).await,
+    if args.command.is_none() {
+        display_config()
+    } else {
+        run_command(&args)
     }
 }
