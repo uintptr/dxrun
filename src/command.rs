@@ -37,15 +37,8 @@ fn find_compose(command: &str) -> Result<PathBuf> {
         bail!("{} does not exist", command_dir.display());
     }
 
-    //
-    // make sure the directory contains both the docker and compose files
-    //
-    let docker_file = command_dir.join("Dockerfile");
     let compose_file = command_dir.join("docker-compose.yml");
 
-    if !docker_file.exists() {
-        bail!("{} is missing", docker_file.display());
-    }
     if !compose_file.exists() {
         bail!("{} is missing", compose_file.display());
     }
