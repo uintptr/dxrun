@@ -3,7 +3,7 @@ use std::{
     process::Command,
 };
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::Parser;
 use log::info;
 use which::which;
@@ -26,6 +26,15 @@ pub struct UserArgs {
     pub no_cache: bool,
 
     pub command: Option<String>,
+}
+
+fn find_composer() -> Result<PathBuf> {
+    let composer = match which("docker-compose") {
+        Ok(v) => v,
+        Err(_) => which("podman-compose").context("podman-compose was not found")?,
+    };
+
+    Ok(composer)
 }
 
 fn find_compose(command: &str) -> Result<PathBuf> {
@@ -53,9 +62,9 @@ fn run_compose(user_args: &UserArgs, name: &str, compose_file: &Path) -> Result<
         .parent()
         .ok_or(anyhow!("parent directory not found"))?;
 
-    let composer = which("docker-compose")?;
+    let composer = find_composer().context("Unable to find composer")?;
 
-    info!("spawning {}", compose_file.display());
+    info!("spawning {} {}", composer.display(), compose_file.display());
 
     let mut args = vec!["up"];
 
@@ -95,7 +104,7 @@ fn build_image(user_args: &UserArgs, compose_file: &Path) -> Result<()> {
         .parent()
         .ok_or(anyhow!("parent directory not found"))?;
 
-    let composer = which("docker-compose")?;
+    let composer = find_composer().context("Unable to find composer")?;
 
     info!("building {}", compose_file.display());
 
